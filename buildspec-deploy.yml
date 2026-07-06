@@ -1,0 +1,22 @@
+version: 0.2
+env:
+  variables:
+    AWS_REGION: us-east-1
+    CLUSTER_NAME: eks-acg
+    NAMESPACE: nginx-app
+phases:
+  install:
+    commands:
+      - curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+  pre_build:
+    commands:
+      - aws eks update-kubeconfig --name $CLUSTER_NAME --region $AWS_REGION
+      - export IMAGE_URI=$(cat image_uri.txt)
+      - echo "Deploying image $IMAGE_URI"
+  build:
+    commands:
+      - envsubst < k8s/deployment.yaml | kubectl apply -n $NAMESPACE -f -
+      - kubectl apply -n $NAMESPACE -f k8s/service.yaml
+      - kubectl rollout status deployment/nginx -n $NAMESPACE --timeout=120s
+      

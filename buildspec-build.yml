@@ -1,0 +1,27 @@
+version: 0.2
+env:
+  variables:
+    AWS_REGION: us-east-1
+    ECR_REPO: nginx-cicd
+phases:
+  pre_build:
+    commands:
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - REGISTRY=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Logging in to ECR..."
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REGISTRY
+  build:
+    commands:
+      - echo "Building image $ECR_REPO:$IMAGE_TAG"
+      - docker build -t $ECR_REPO:$IMAGE_TAG .
+      - docker tag $ECR_REPO:$IMAGE_TAG $REGISTRY/$ECR_REPO:$IMAGE_TAG
+  post_build:
+    commands:
+      - docker push $REGISTRY/$ECR_REPO:$IMAGE_TAG
+      - printf '%s' "$REGISTRY/$ECR_REPO:$IMAGE_TAG" > image_uri.txt
+      - echo "Pushed $REGISTRY/$ECR_REPO:$IMAGE_TAG"
+artifacts:
+  files:
+    - image_uri.txt
+    - k8s/**/*
